@@ -327,12 +327,12 @@ function buildTicketEmbed() {
     console.log("── STEP 4: Creating V2 categories ──");
 
     const v2Categories = [
-        "START HERE",
-        "COMMUNITY",
-        "SCALP PRO — SIGNAL DESK",
-        "WICK HUNTER — SIGNAL DESK",
-        "SUPPORT",
-        "STAFF ONLY",
+        "📋 START HERE",
+        "💬 COMMUNITY",
+        "📊 SCALP PRO — SIGNAL DESK",
+        "📊 WICK HUNTER — SIGNAL DESK",
+        "🎫 SUPPORT",
+        "🔒 STAFF ONLY",
     ];
 
     // Re-fetch after deletions
@@ -365,38 +365,38 @@ function buildTicketEmbed() {
     console.log("── STEP 5: Applying category permissions ──");
 
     const catOverwrites = {
-        "START HERE": [
+        "📋 START HERE": [
             ow(R["@everyone"], ZERO, DENY_VIEW),
             ow(R["Free"], BASIC_VIEW, ZERO),
             ow(R["Scalp Pro"], BASIC_VIEW, ZERO),
             ow(R["Wick Hunter"], BASIC_VIEW, ZERO),
         ],
-        "COMMUNITY": [
+        "💬 COMMUNITY": [
             ow(R["@everyone"], ZERO, DENY_VIEW),
             ow(R["Free"], BASIC_CHAT, ZERO),
             ow(R["Scalp Pro"], BASIC_CHAT, ZERO),
             ow(R["Wick Hunter"], BASIC_CHAT, ZERO),
         ],
-        "SCALP PRO — SIGNAL DESK": [
+        "📊 SCALP PRO — SIGNAL DESK": [
             ow(R["@everyone"], ZERO, DENY_VIEW),
             ow(R["Free"], ZERO, DENY_VIEW),
             ow(R["Scalp Pro"], BASIC_CHAT, ZERO),
             ow(R["Wick Hunter"], ZERO, DENY_VIEW),
         ],
-        "WICK HUNTER — SIGNAL DESK": [
+        "📊 WICK HUNTER — SIGNAL DESK": [
             ow(R["@everyone"], ZERO, DENY_VIEW),
             ow(R["Free"], ZERO, DENY_VIEW),
             ow(R["Scalp Pro"], ZERO, DENY_VIEW),
             ow(R["Wick Hunter"], BASIC_CHAT, ZERO),
         ],
-        "SUPPORT": [
+        "🎫 SUPPORT": [
             ow(R["@everyone"], ZERO, DENY_VIEW),
             ow(R["Free"], BASIC_CHAT, ZERO),
             ow(R["Scalp Pro"], BASIC_CHAT, ZERO),
             ow(R["Wick Hunter"], BASIC_CHAT, ZERO),
             ow(R["Support"], BASIC_CHAT_MANAGE, ZERO),
         ],
-        "STAFF ONLY": [
+        "🔒 STAFF ONLY": [
             ow(R["@everyone"], ZERO, DENY_VIEW),
             ow(R["Free"], ZERO, DENY_VIEW),
             ow(R["Scalp Pro"], ZERO, DENY_VIEW),
@@ -419,29 +419,29 @@ function buildTicketEmbed() {
 
     const v2Channels = [
         // START HERE
-        { name: "welcome", parent: "START HERE" },
-        { name: "server-guide", parent: "START HERE" },
-        { name: "announcements", parent: "START HERE" },
+        { name: "welcome", parent: "📋 START HERE" },
+        { name: "server-guide", parent: "📋 START HERE" },
+        { name: "announcements", parent: "📋 START HERE" },
         // COMMUNITY
-        { name: "general-chat", parent: "COMMUNITY" },
-        { name: "wins-and-pnl", parent: "COMMUNITY" },
-        { name: "faq", parent: "COMMUNITY" },
+        { name: "general-chat", parent: "💬 COMMUNITY" },
+        { name: "wins-and-pnl", parent: "💬 COMMUNITY" },
+        { name: "faq", parent: "💬 COMMUNITY" },
         // ALGO 1
-        { name: "scalp-pro-signals", parent: "SCALP PRO — SIGNAL DESK" },
-        { name: "scalp-pro-performance", parent: "SCALP PRO — SIGNAL DESK" },
-        { name: "scalp-pro-daily-plan", parent: "SCALP PRO — SIGNAL DESK" },
-        { name: "scalp-pro-discussion", parent: "SCALP PRO — SIGNAL DESK" },
+        { name: "scalp-pro-signals", parent: "📊 SCALP PRO — SIGNAL DESK" },
+        { name: "scalp-pro-performance", parent: "📊 SCALP PRO — SIGNAL DESK" },
+        { name: "scalp-pro-daily-plan", parent: "📊 SCALP PRO — SIGNAL DESK" },
+        { name: "scalp-pro-discussion", parent: "📊 SCALP PRO — SIGNAL DESK" },
         // ALGO 2
-        { name: "wick-hunter-signals", parent: "WICK HUNTER — SIGNAL DESK" },
-        { name: "wick-hunter-performance", parent: "WICK HUNTER — SIGNAL DESK" },
-        { name: "wick-hunter-daily-plan", parent: "WICK HUNTER — SIGNAL DESK" },
-        { name: "wick-hunter-discussion", parent: "WICK HUNTER — SIGNAL DESK" },
+        { name: "wick-hunter-signals", parent: "📊 WICK HUNTER — SIGNAL DESK" },
+        { name: "wick-hunter-performance", parent: "📊 WICK HUNTER — SIGNAL DESK" },
+        { name: "wick-hunter-daily-plan", parent: "📊 WICK HUNTER — SIGNAL DESK" },
+        { name: "wick-hunter-discussion", parent: "📊 WICK HUNTER — SIGNAL DESK" },
         // SUPPORT
-        { name: "create-ticket", parent: "SUPPORT" },
-        { name: "platform-help", parent: "SUPPORT" },
+        { name: "create-ticket", parent: "🎫 SUPPORT" },
+        { name: "platform-help", parent: "🎫 SUPPORT" },
         // STAFF ONLY
-        { name: "security-logs", parent: "STAFF ONLY" },
-        { name: "mod-chat", parent: "STAFF ONLY" },
+        { name: "security-logs", parent: "🔒 STAFF ONLY" },
+        { name: "mod-chat", parent: "🔒 STAFF ONLY" },
     ];
 
     // Re-fetch channels after category creation
@@ -575,8 +575,8 @@ function buildTicketEmbed() {
         const results = [];
         const allCh = DRY_RUN ? [] : await api("GET", `/guilds/${GUILD_ID}/channels`);
 
-        const algo1Ch = allCh.filter((c) => c.parent_id === C["SCALP PRO — SIGNAL DESK"]);
-        const algo2Ch = allCh.filter((c) => c.parent_id === C["WICK HUNTER — SIGNAL DESK"]);
+        const algo1Ch = allCh.filter((c) => c.parent_id === C["📊 SCALP PRO — SIGNAL DESK"]);
+        const algo2Ch = allCh.filter((c) => c.parent_id === C["📊 WICK HUNTER — SIGNAL DESK"]);
 
         for (const ch of algo1Ch) {
             for (const check of [
