@@ -236,53 +236,143 @@ async function createAiChannel(channels) {
 async function postAiWelcomeEmbed() {
     if (!aiChannelId) return;
     const ch = await guild.channels.fetch(aiChannelId);
-    const msgs = await ch.messages.fetch({ limit: 5 });
-    if (msgs.some((m) => m.author.id === client.user.id)) return;
+    const msgs = await ch.messages.fetch({ limit: 10 });
+    // Check if our embed with a button is already there
+    if (msgs.some((m) => m.author.id === client.user.id && m.components?.length > 0)) return;
+    // Delete any old bot messages first
+    for (const [, m] of msgs) {
+        if (m.author.id === client.user.id) await m.delete().catch(() => { });
+    }
 
     const embed = new EmbedBuilder()
-        .setTitle("🧠 Ask Praxis — AI Assistant")
+        .setTitle("🧠 Ask Praxis — Private AI Assistant")
         .setDescription(
-            "Have a question? Just type it here and I'll answer instantly.\n\n" +
+            "Click the button below to start a **private** conversation with the Praxis AI assistant.\n\n" +
+            "Your conversation is **only visible to you** — no one else can see it.\n\n" +
             "**I can help with:**\n" +
             "• Understanding Scalp Pro & Wick Hunter signals\n" +
             "• TradingView indicator setup & username management\n" +
             "• Market session times & trading basics\n" +
             "• Subscription & membership questions\n" +
-            "• Anything else about Praxis Systems\n\n" +
-            "Need a real human? Just ask me to **open a ticket** and I'll route you straight to the team."
+            "• Anything else about Praxis Systems"
         )
         .setColor(COLORS.purple)
         .addFields({
-            name: "⚡ Slash Commands",
+            name: "⚡ Slash Commands (work anywhere)",
             value:
                 "`/tradingview set username:yourname` — Register or update your TradingView username\n" +
-                "`/mystatus` — See your subscription and registered TradingView username",
+                "`/mystatus` — See your subscription and registered details",
             inline: false,
         })
-        .setFooter({ text: "Praxis Systems AI — Powered by GPT-4o" })
+        .setFooter({ text: "Praxis Systems AI — Powered by GPT-4o • Conversations are private" })
         .setTimestamp();
 
-    await ch.send({ embeds: [embed] });
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId("start_ai_chat")
+            .setLabel("💬 Start Private AI Chat")
+            .setStyle(ButtonStyle.Primary)
+    );
+
+    await ch.send({ embeds: [embed], components: [row] });
 }
 
+// Track which users have an active AI thread
+const activeAiThreads = new Map(); // userId -> threadId
+
+client.on(Events.InteractionCreate, async (interaction) => {
+    // ── Start AI Chat Button ──────────────────────────────────────────────────
+    if (interaction.isButton() && interaction.customId === "start_ai_chat") {
+        const userId = interaction.user.id;
+
+        // If they already have an active thread, point them there
+        if (activeAiThreads.has(userId)) {
+            const existingId = activeAiThreads.get(userId);
+            const existing = guild.channels.cache.get(existingId);
+            if (existing) {
+                return interaction.reply({
+                    content: `You already have an active AI chat: <#${existingId}>`,
+                    ephemeral: true,
+                });
+            }
+            // Thread was deleted — remove stale reference
+            activeAiThreads.delete(userId);
+        }
+
+        await interaction.deferReply({ ephemeral: true });
+
+        try {
+            const channel = await guild.channels.fetch(aiChannelId);
+
+            // Create a private thread visible only to this user and admins
+            const thread = await channel.threads.create({
+                name: `praxis-ai-${interaction.user.username}`,
+                type: ChannelType.PrivateThread,
+                invitable: false, // only admins can add people
+                autoArchiveDuration: 60, // archive after 1hr of inactivity
+                reason: `Private AI chat for ${interaction.user.tag}`,
+            });
+
+            activeAiThreads.set(userId, thread.id);
+
+            // Post welcome into the thread
+            const users = loadUsers();
+            const member = interaction.member;
+            const userData = users[userId] || {};
+            const sub = userData.subscription || detectSubscription(member);
+
+            const welcomeEmbed = new EmbedBuilder()
+                .setTitle("🧠 Praxis AI — Private Chat")
+                .setDescription(
+                    `Hey **${interaction.user.username}**! This is your private conversation with the Praxis AI.\n\n` +
+                    "Type your question below and I'll reply instantly. Only you (and server admins) can see this thread.\n\n" +
+                    `**Your plan:** ${sub} | **TradingView:** ${userData.tradingview_username ? `\`${userData.tradingview_username}\`` : "not registered"}\n\n` +
+                    "Need a human? Just say **\"open a ticket\"** and I'll connect you."
+                )
+                .setColor(COLORS.purple)
+                .setFooter({ text: "Praxis AI • Powered by GPT-4o" });
+
+            await thread.send({ content: `<@${userId}>`, embeds: [welcomeEmbed] });
+
+            await interaction.editReply({
+                content: `Your private AI chat is ready: <#${thread.id}>`,
+            });
+        } catch (err) {
+            console.error("AI thread creation error:", err.message);
+            await interaction.editReply({
+                content: "Couldn't create your private chat thread. Please try again.",
+            });
+        }
+        return;
+    }
+
+    if (!interaction.isChatInputCommand()) return;
+
+    await handleSlashCommand(interaction);
+});
+
 // ══════════════════════════════════════════════════════════════════════════════
-// MESSAGE HANDLER — AI Chat in #ask-praxis
+// MESSAGE HANDLER — AI Chat in private threads
 // ══════════════════════════════════════════════════════════════════════════════
 client.on(Events.MessageCreate, async (message) => {
     if (message.author.bot) return;
-    if (message.channel.id !== aiChannelId) return;
     if (!message.guild) return;
 
-    const member = message.member || await guild.members.fetch(message.author.id);
+    // Only respond in private AI chat threads
+    const isAiThread = [...activeAiThreads.values()].includes(message.channel.id)
+        || (message.channel.isThread() && message.channel.name.startsWith("praxis-ai-"));
+    if (!isAiThread) return;
+
+    const member = message.member || await guild.members.fetch(message.author.id).catch(() => null);
+    if (!member) return;
     const users = loadUsers();
 
-    // Check if escalation is needed
+    // Escalation check
     if (needsEscalation(message.content)) {
         await sendEscalationEmbed(message.channel, message.author);
         return;
     }
 
-    // Show typing indicator
     await message.channel.sendTyping();
 
     const systemPrompt = buildSystemPrompt(member, users);
@@ -291,7 +381,7 @@ client.on(Events.MessageCreate, async (message) => {
     let reply = "";
 
     if (!openai) {
-        reply = "⚠️ The AI is not configured yet. Please add your `OPENAI_API_KEY` to the `.env` file and restart the bot.";
+        reply = "⚠️ The AI is not configured yet (missing OPENAI_API_KEY).";
     } else {
         try {
             const completion = await openai.chat.completions.create({
@@ -306,7 +396,6 @@ client.on(Events.MessageCreate, async (message) => {
 
             reply = completion.choices[0]?.message?.content?.trim() || "I couldn't generate a response. Please try again.";
 
-            // If AI decided escalation is needed
             if (reply.includes("ESCALATE_TO_TICKET")) {
                 await sendEscalationEmbed(message.channel, message.author);
                 return;
@@ -319,11 +408,10 @@ client.on(Events.MessageCreate, async (message) => {
         }
     }
 
-    // Send response as embed
     const embed = new EmbedBuilder()
         .setDescription(reply)
         .setColor(COLORS.purple)
-        .setFooter({ text: `Replying to ${message.author.username} • Praxis AI` });
+        .setFooter({ text: "Praxis AI • GPT-4o" });
 
     await message.reply({ embeds: [embed] });
 });
@@ -391,9 +479,7 @@ async function registerSlashCommands() {
     }
 }
 
-client.on(Events.InteractionCreate, async (interaction) => {
-    if (!interaction.isChatInputCommand()) return;
-
+async function handleSlashCommand(interaction) {
     const users = loadUsers();
     const userId = interaction.user.id;
 
@@ -493,7 +579,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             return;
         }
     }
-});
+}
 
 function detectSubscription(member) {
     if (!member) return "Free";
