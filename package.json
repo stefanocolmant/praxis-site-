@@ -1,0 +1,16 @@
+{
+  "name": "passpro-discord-deploy",
+  "version": "2.0.0",
+  "description": "Idempotent Discord server-as-code deployment + premium bot for PassPro",
+  "main": "deploy.js",
+  "scripts": {
+    "deploy": "node deploy.js",
+    "dry-run": "node deploy.js --dry-run",
+    "bot": "node bot.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.7",
+    "node-fetch": "^2.7.0"
+  }
+}
