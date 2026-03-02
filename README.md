@@ -5,7 +5,7 @@ Idempotent Discord server deployment + premium bot for the PassPro algorithmic t
 ## What It Does
 
 **`deploy.js`** — One-shot server setup (safe to re-run):
-- Creates 6 roles (Admin → Moderator → Support → Algo 1 → Algo 2 → Free)
+- Creates 6 roles (Admin → Moderator → Support → Scalp Pro → Wick Hunter → Free)
 - Creates 6 categories and 18 channels with clean hierarchy
 - Applies fintech-grade permission isolation (Algo silos fully invisible)
 - Runs a 24-check security audit and auto-fixes any issues
@@ -46,8 +46,8 @@ npm run bot
 ```
 📋 START HERE         — welcome (verify gate), server-guide, announcements
 💬 COMMUNITY          — general-chat, wins-and-pnl, faq
-📊 ALGO 1 SIGNAL DESK — signals, performance, daily-plan, discussion
-📊 ALGO 2 SIGNAL DESK — signals, performance, daily-plan, discussion
+📊 SCALP PRO SIGNAL DESK — signals, performance, daily-plan, discussion
+📊 WICK HUNTER SIGNAL DESK — signals, performance, daily-plan, discussion
 🎫 SUPPORT            — create-ticket (bot), platform-help
 🔒 STAFF ONLY         — security-logs, mod-chat
 ```

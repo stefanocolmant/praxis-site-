@@ -151,7 +151,7 @@ async function postVerifyEmbed() {
                     "1. Click **✅ Verify** below to accept the rules\n" +
                     "2. Read **#server-guide** for a full tour\n" +
                     "3. Chat in **#general-chat**\n" +
-                    "4. Upgrade to Algo 1 or Algo 2 for live signals",
+                    "4. Upgrade to Scalp Pro or Wick Hunter for live signals",
             },
             {
                 name: "⚠️ Risk Disclaimer",
@@ -278,7 +278,7 @@ async function handleVerify(interaction) {
                 "✅ **Verified!** You now have access to the server.\n\n" +
                 "👉 Start with **#server-guide** to learn your way around.\n" +
                 "👉 Chat with the community in **#general-chat**.\n" +
-                "👉 Upgrade to **Algo 1** or **Algo 2** for live signals.",
+                "👉 Upgrade to **Scalp Pro** or **Wick Hunter** for live signals.",
             ephemeral: true,
         });
 

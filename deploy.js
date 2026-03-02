@@ -151,8 +151,8 @@ function buildServerGuideEmbed() {
                     inline: false,
                 },
                 {
-                    name: "📊 ALGO 1 / ALGO 2 — SIGNAL DESKS",
-                    value: "These are **private, members-only** sections for each algorithm. If you've subscribed to Algo 1 or Algo 2, you'll see:\n• **#signals** — Real-time trade alerts\n• **#performance** — Track record & historical stats\n• **#daily-plan** — Pre-market outlook & key levels\n• **#discussion** — Discuss setups with fellow traders\n\n*Don't see these? You need to upgrade your plan.*",
+                    name: "📊 SCALP PRO / WICK HUNTER — SIGNAL DESKS",
+                    value: "These are **private, members-only** sections for each algorithm. If you've subscribed to Scalp Pro or Wick Hunter, you'll see:\n• **#signals** — Real-time trade alerts\n• **#performance** — Track record & historical stats\n• **#daily-plan** — Pre-market outlook & key levels\n• **#discussion** — Discuss setups with fellow traders\n\n*Don't see these? You need to upgrade your plan.*",
                     inline: false,
                 },
                 {
@@ -238,8 +238,8 @@ function buildTicketEmbed() {
         { name: "Admin", color: 0xe74c3c, hoist: true, permissions: "8" },
         { name: "Moderator", color: 0xe67e22, hoist: true, permissions: "0" },
         { name: "Support", color: 0x3498db, hoist: true, permissions: "0" },
-        { name: "Algo 1", color: 0x2ecc71, hoist: false, permissions: "0" },
-        { name: "Algo 2", color: 0x9b59b6, hoist: false, permissions: "0" },
+        { name: "Scalp Pro", color: 0x2ecc71, hoist: false, permissions: "0" },
+        { name: "Wick Hunter", color: 0x9b59b6, hoist: false, permissions: "0" },
         { name: "Free", color: 0x95a5a6, hoist: false, permissions: "0" },
     ];
 
@@ -299,8 +299,8 @@ function buildTicketEmbed() {
     const oldCategories = [
         "ENTRY & COMPLIANCE",
         "FREE LOBBY",
-        "ALGO 1 — PRIVATE SIGNAL DESK",
-        "ALGO 2 — PRIVATE SIGNAL DESK",
+        "SCALP PRO — PRIVATE SIGNAL DESK",
+        "WICK HUNTER — PRIVATE SIGNAL DESK",
         "SUPPORT CENTER",
         "STAFF LOGS",
     ];
@@ -329,8 +329,8 @@ function buildTicketEmbed() {
     const v2Categories = [
         "START HERE",
         "COMMUNITY",
-        "ALGO 1 — SIGNAL DESK",
-        "ALGO 2 — SIGNAL DESK",
+        "SCALP PRO — SIGNAL DESK",
+        "WICK HUNTER — SIGNAL DESK",
         "SUPPORT",
         "STAFF ONLY",
     ];
@@ -368,39 +368,39 @@ function buildTicketEmbed() {
         "START HERE": [
             ow(R["@everyone"], ZERO, DENY_VIEW),
             ow(R["Free"], BASIC_VIEW, ZERO),
-            ow(R["Algo 1"], BASIC_VIEW, ZERO),
-            ow(R["Algo 2"], BASIC_VIEW, ZERO),
+            ow(R["Scalp Pro"], BASIC_VIEW, ZERO),
+            ow(R["Wick Hunter"], BASIC_VIEW, ZERO),
         ],
         "COMMUNITY": [
             ow(R["@everyone"], ZERO, DENY_VIEW),
             ow(R["Free"], BASIC_CHAT, ZERO),
-            ow(R["Algo 1"], BASIC_CHAT, ZERO),
-            ow(R["Algo 2"], BASIC_CHAT, ZERO),
+            ow(R["Scalp Pro"], BASIC_CHAT, ZERO),
+            ow(R["Wick Hunter"], BASIC_CHAT, ZERO),
         ],
-        "ALGO 1 — SIGNAL DESK": [
+        "SCALP PRO — SIGNAL DESK": [
             ow(R["@everyone"], ZERO, DENY_VIEW),
             ow(R["Free"], ZERO, DENY_VIEW),
-            ow(R["Algo 1"], BASIC_CHAT, ZERO),
-            ow(R["Algo 2"], ZERO, DENY_VIEW),
+            ow(R["Scalp Pro"], BASIC_CHAT, ZERO),
+            ow(R["Wick Hunter"], ZERO, DENY_VIEW),
         ],
-        "ALGO 2 — SIGNAL DESK": [
+        "WICK HUNTER — SIGNAL DESK": [
             ow(R["@everyone"], ZERO, DENY_VIEW),
             ow(R["Free"], ZERO, DENY_VIEW),
-            ow(R["Algo 1"], ZERO, DENY_VIEW),
-            ow(R["Algo 2"], BASIC_CHAT, ZERO),
+            ow(R["Scalp Pro"], ZERO, DENY_VIEW),
+            ow(R["Wick Hunter"], BASIC_CHAT, ZERO),
         ],
         "SUPPORT": [
             ow(R["@everyone"], ZERO, DENY_VIEW),
             ow(R["Free"], BASIC_CHAT, ZERO),
-            ow(R["Algo 1"], BASIC_CHAT, ZERO),
-            ow(R["Algo 2"], BASIC_CHAT, ZERO),
+            ow(R["Scalp Pro"], BASIC_CHAT, ZERO),
+            ow(R["Wick Hunter"], BASIC_CHAT, ZERO),
             ow(R["Support"], BASIC_CHAT_MANAGE, ZERO),
         ],
         "STAFF ONLY": [
             ow(R["@everyone"], ZERO, DENY_VIEW),
             ow(R["Free"], ZERO, DENY_VIEW),
-            ow(R["Algo 1"], ZERO, DENY_VIEW),
-            ow(R["Algo 2"], ZERO, DENY_VIEW),
+            ow(R["Scalp Pro"], ZERO, DENY_VIEW),
+            ow(R["Wick Hunter"], ZERO, DENY_VIEW),
             ow(R["Support"], ZERO, DENY_VIEW),
             ow(R["Moderator"], BASIC_VIEW, ZERO),
             ow(R["Admin"], BASIC_CHAT, ZERO),
@@ -427,15 +427,15 @@ function buildTicketEmbed() {
         { name: "wins-and-pnl", parent: "COMMUNITY" },
         { name: "faq", parent: "COMMUNITY" },
         // ALGO 1
-        { name: "algo-1-signals", parent: "ALGO 1 — SIGNAL DESK" },
-        { name: "algo-1-performance", parent: "ALGO 1 — SIGNAL DESK" },
-        { name: "algo-1-daily-plan", parent: "ALGO 1 — SIGNAL DESK" },
-        { name: "algo-1-discussion", parent: "ALGO 1 — SIGNAL DESK" },
+        { name: "scalp-pro-signals", parent: "SCALP PRO — SIGNAL DESK" },
+        { name: "scalp-pro-performance", parent: "SCALP PRO — SIGNAL DESK" },
+        { name: "scalp-pro-daily-plan", parent: "SCALP PRO — SIGNAL DESK" },
+        { name: "scalp-pro-discussion", parent: "SCALP PRO — SIGNAL DESK" },
         // ALGO 2
-        { name: "algo-2-signals", parent: "ALGO 2 — SIGNAL DESK" },
-        { name: "algo-2-performance", parent: "ALGO 2 — SIGNAL DESK" },
-        { name: "algo-2-daily-plan", parent: "ALGO 2 — SIGNAL DESK" },
-        { name: "algo-2-discussion", parent: "ALGO 2 — SIGNAL DESK" },
+        { name: "wick-hunter-signals", parent: "WICK HUNTER — SIGNAL DESK" },
+        { name: "wick-hunter-performance", parent: "WICK HUNTER — SIGNAL DESK" },
+        { name: "wick-hunter-daily-plan", parent: "WICK HUNTER — SIGNAL DESK" },
+        { name: "wick-hunter-discussion", parent: "WICK HUNTER — SIGNAL DESK" },
         // SUPPORT
         { name: "create-ticket", parent: "SUPPORT" },
         { name: "platform-help", parent: "SUPPORT" },
@@ -488,8 +488,8 @@ function buildTicketEmbed() {
             permission_overwrites: [
                 ow(R["@everyone"], ZERO, DENY_VIEW),
                 ow(R["Free"], BASIC_VIEW, DENY_SEND),
-                ow(R["Algo 1"], BASIC_VIEW, DENY_SEND),
-                ow(R["Algo 2"], BASIC_VIEW, DENY_SEND),
+                ow(R["Scalp Pro"], BASIC_VIEW, DENY_SEND),
+                ow(R["Wick Hunter"], BASIC_VIEW, DENY_SEND),
             ],
         });
         await throttle();
@@ -501,8 +501,8 @@ function buildTicketEmbed() {
         permission_overwrites: [
             ow(R["@everyone"], ZERO, DENY_VIEW),
             ow(R["Free"], BASIC_VIEW, DENY_SEND),
-            ow(R["Algo 1"], BASIC_VIEW, DENY_SEND),
-            ow(R["Algo 2"], BASIC_VIEW, DENY_SEND),
+            ow(R["Scalp Pro"], BASIC_VIEW, DENY_SEND),
+            ow(R["Wick Hunter"], BASIC_VIEW, DENY_SEND),
             ow(R["Admin"], BASIC_CHAT, ZERO),
         ],
     });
@@ -514,8 +514,8 @@ function buildTicketEmbed() {
         permission_overwrites: [
             ow(R["@everyone"], ZERO, DENY_VIEW),
             ow(R["Free"], BASIC_CHAT, ZERO),
-            ow(R["Algo 1"], BASIC_CHAT, ZERO),
-            ow(R["Algo 2"], BASIC_CHAT, ZERO),
+            ow(R["Scalp Pro"], BASIC_CHAT, ZERO),
+            ow(R["Wick Hunter"], BASIC_CHAT, ZERO),
             ow(R["Support"], BASIC_CHAT_MANAGE, ZERO),
         ],
     });
@@ -527,8 +527,8 @@ function buildTicketEmbed() {
         permission_overwrites: [
             ow(R["@everyone"], ZERO, DENY_VIEW),
             ow(R["Free"], BASIC_CHAT, ZERO),
-            ow(R["Algo 1"], BASIC_CHAT, ZERO),
-            ow(R["Algo 2"], BASIC_CHAT, ZERO),
+            ow(R["Scalp Pro"], BASIC_CHAT, ZERO),
+            ow(R["Wick Hunter"], BASIC_CHAT, ZERO),
             ow(R["Support"], BASIC_CHAT_MANAGE, ZERO),
         ],
     });
@@ -575,14 +575,14 @@ function buildTicketEmbed() {
         const results = [];
         const allCh = DRY_RUN ? [] : await api("GET", `/guilds/${GUILD_ID}/channels`);
 
-        const algo1Ch = allCh.filter((c) => c.parent_id === C["ALGO 1 — SIGNAL DESK"]);
-        const algo2Ch = allCh.filter((c) => c.parent_id === C["ALGO 2 — SIGNAL DESK"]);
+        const algo1Ch = allCh.filter((c) => c.parent_id === C["SCALP PRO — SIGNAL DESK"]);
+        const algo2Ch = allCh.filter((c) => c.parent_id === C["WICK HUNTER — SIGNAL DESK"]);
 
         for (const ch of algo1Ch) {
             for (const check of [
                 { label: "@everyone deny VIEW", roleId: R["@everyone"] },
                 { label: "Free deny VIEW", roleId: R["Free"] },
-                { label: "Algo 2 deny VIEW", roleId: R["Algo 2"] },
+                { label: "Wick Hunter deny VIEW", roleId: R["Wick Hunter"] },
             ]) {
                 const owEntry = (ch.permission_overwrites || []).find((o) => o.id === check.roleId);
                 const denyBits = BigInt(owEntry?.deny ?? "0");
@@ -608,7 +608,7 @@ function buildTicketEmbed() {
             for (const check of [
                 { label: "@everyone deny VIEW", roleId: R["@everyone"] },
                 { label: "Free deny VIEW", roleId: R["Free"] },
-                { label: "Algo 1 deny VIEW", roleId: R["Algo 1"] },
+                { label: "Scalp Pro deny VIEW", roleId: R["Scalp Pro"] },
             ]) {
                 const owEntry = (ch.permission_overwrites || []).find((o) => o.id === check.roleId);
                 const denyBits = BigInt(owEntry?.deny ?? "0");
