@@ -1,0 +1,54 @@
+[
+    {
+        "q": "What is Praxis Systems?",
+        "a": "Praxis Systems is a professional algorithmic trading community. We provide two proven trading systems — Scalp Pro and Wick Hunter — that give members real-time signals on futures markets. Our systems are fully automated and designed for consistent, disciplined execution."
+    },
+    {
+        "q": "What is Scalp Pro?",
+        "a": "Scalp Pro is our first algorithmic trading system, optimized for high-frequency, short-duration trades. It focuses on quick, precise entries and exits to capture small but consistent moves in the market. Signals are posted in the #scalp-pro-signals channel."
+    },
+    {
+        "q": "What is Wick Hunter?",
+        "a": "Wick Hunter is our second algorithmic trading system, designed to identify and trade off significant price wick rejections at key levels. It catches larger, higher-probability reversals. Signals are posted in the #wick-hunter-signals channel."
+    },
+    {
+        "q": "How do I access signals?",
+        "a": "Signals are in the private signal desk channels. You need to upgrade your membership to Scalp Pro or Wick Hunter to see them. Once upgraded, you'll be assigned the appropriate role and the channels will appear automatically."
+    },
+    {
+        "q": "How do I upgrade my membership?",
+        "a": "To upgrade to Scalp Pro or Wick Hunter, visit passpro.live and complete your purchase. Once confirmed, your Discord role will be updated and you'll gain access to the private signal channels."
+    },
+    {
+        "q": "How do I install the TradingView indicator?",
+        "a": "After your role is assigned, you'll receive an invite link for the TradingView indicator in your signal channel (#scalp-pro-signals or #wick-hunter-signals). Click 'Add to chart' and it will appear in your TradingView indicator list. Make sure you're using the TradingView username you registered with us."
+    },
+    {
+        "q": "How do I update my TradingView username?",
+        "a": "Use the slash command `/tradingview set username:your_new_username` in this channel or any channel. The team will be notified and update your access within a few hours."
+    },
+    {
+        "q": "What markets do you trade?",
+        "a": "Praxis Systems focuses primarily on CME futures markets including ES (S&P 500), NQ (NASDAQ), and MES/MNQ micro contracts. Our algos are optimized for these instruments."
+    },
+    {
+        "q": "What are the trading hours?",
+        "a": "The primary US futures session runs 9:30 AM – 4:00 PM ET. There is also a pre-market session from 6:00 AM – 9:30 AM ET. Our algos are most active during regular trading hours."
+    },
+    {
+        "q": "Is this financial advice?",
+        "a": "No. Nothing in this server or from our systems constitutes financial advice. Trading futures involves substantial risk of loss. Past performance of our algorithms is not indicative of future results. Always trade responsibly and with money you can afford to lose."
+    },
+    {
+        "q": "How do I open a support ticket?",
+        "a": "Head to the #create-ticket channel and click the 'Open a Ticket' button. A private channel will be created just for you and our support team."
+    },
+    {
+        "q": "What is a prop firm?",
+        "a": "A proprietary trading firm (prop firm) provides traders with funded accounts to trade with. Traders pass an evaluation phase and then receive a funded account, keeping a percentage of the profits. PassPro can help you get funded through our algorithmic systems."
+    },
+    {
+        "q": "How do I check my subscription?",
+        "a": "Use the `/mystatus` slash command to see your registered subscription type and TradingView username on file."
+    }
+]

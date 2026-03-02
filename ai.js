@@ -1,0 +1,665 @@
+#!/usr/bin/env node
+// ─────────────────────────────────────────────────────────────────────────────
+// Praxis Systems — AI Bot Module (ai.js)
+// Additive module — does NOT modify bot.js or deploy.js
+//
+// Features:
+//   • AI Chatbot in #ask-praxis (GPT-4o, context-aware, per-user memory)
+//   • Smart escalation → ticket button when human help is needed
+//   • Slash commands: /tradingview, /mystatus
+//   • TradingView username change tracker → alerts admin in #mod-chat
+//   • Daily market briefing (8AM ET, weekdays)
+//   • Inactive ticket auto-cleanup (48hr)
+//   • Discord username change detector
+// ─────────────────────────────────────────────────────────────────────────────
+"use strict";
+
+require("dotenv").config();
+const {
+    Client,
+    GatewayIntentBits,
+    Events,
+    EmbedBuilder,
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle,
+    ChannelType,
+    PermissionFlagsBits,
+    SlashCommandBuilder,
+    REST,
+    Routes,
+} = require("discord.js");
+const OpenAI = require("openai");
+const fs = require("fs");
+const path = require("path");
+const cron = require("node-cron");
+
+// ── Environment ───────────────────────────────────────────────────────────────
+const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
+const GUILD_ID = process.env.GUILD_ID;
+const OPENAI_KEY = process.env.OPENAI_API_KEY;
+const CLIENT_ID = process.env.DISCORD_CLIENT_ID; // app/client id
+
+if (!BOT_TOKEN || !GUILD_ID) {
+    console.error("❌  Missing DISCORD_BOT_TOKEN or GUILD_ID in .env");
+    process.exit(1);
+}
+
+if (!OPENAI_KEY) {
+    console.warn("⚠  OPENAI_API_KEY not set — AI chat will respond with a placeholder.");
+}
+
+// ── OpenAI Client ─────────────────────────────────────────────────────────────
+const openai = OPENAI_KEY ? new OpenAI({ apiKey: OPENAI_KEY }) : null;
+
+// ── Data Paths ────────────────────────────────────────────────────────────────
+const USERS_PATH = path.join(__dirname, "users.json");
+const KB_PATH = path.join(__dirname, "knowledge-base.json");
+
+function loadUsers() {
+    try { return JSON.parse(fs.readFileSync(USERS_PATH, "utf8")); }
+    catch { return {}; }
+}
+
+function saveUsers(data) {
+    fs.writeFileSync(USERS_PATH, JSON.stringify(data, null, 2), "utf8");
+}
+
+function loadKB() {
+    try { return JSON.parse(fs.readFileSync(KB_PATH, "utf8")); }
+    catch { return []; }
+}
+
+// ── Per-User Conversation Memory (last 20 messages for context) ───────────────
+const conversationHistory = new Map(); // userId → [{role, content}]
+
+function getHistory(userId) {
+    if (!conversationHistory.has(userId)) conversationHistory.set(userId, []);
+    return conversationHistory.get(userId);
+}
+
+function addToHistory(userId, role, content) {
+    const history = getHistory(userId);
+    history.push({ role, content });
+    if (history.length > 20) history.splice(0, history.length - 20);
+}
+
+// ── Escalation Keyword Detection ──────────────────────────────────────────────
+const ESCALATION_PHRASES = [
+    "speak to someone", "real person", "human", "refund", "cancel my subscription",
+    "cancel", "charge", "not working", "urgent", "can't access", "cannot access",
+    "no access", "error", "broken", "wrong charge", "dispute", "chargeback",
+];
+
+function needsEscalation(text) {
+    const lower = text.toLowerCase();
+    return ESCALATION_PHRASES.some((p) => lower.includes(p));
+}
+
+// ── Build System Prompt ───────────────────────────────────────────────────────
+function buildSystemPrompt(member, users) {
+    const userData = users[member.id] || {};
+    const subscription = userData.subscription || "Free (unverified or free tier)";
+    const tvUsername = userData.tradingview_username || "not registered";
+
+    const kb = loadKB();
+    const kbText = kb.map((e) => `Q: ${e.q}\nA: ${e.a}`).join("\n\n");
+
+    return `You are Praxis, the AI assistant for Praxis Systems — a professional algorithmic trading community on Discord.
+
+You are talking to: ${member.user.username} (Discord ID: ${member.id})
+Their subscription: ${subscription}
+Their registered TradingView username: ${tvUsername}
+
+Your personality: professional, concise, knowledgeable, and friendly. You sound like a senior quant who genuinely wants to help.
+
+RULES:
+- Never give specific financial advice or tell users to buy/sell specific assets
+- Always add a brief risk disclaimer if discussing trading outcomes
+- If the user asks about billing issues, refunds, or account problems you cannot verify, tell them to open a ticket
+- If the user wants to speak to a human, respond with ESCALATE_TO_TICKET
+- Keep responses under 300 words unless asked for a detailed explanation
+- Use Discord markdown (bold, code blocks, bullet points) for formatting
+
+KNOWLEDGE BASE:
+${kbText}`;
+}
+
+// ── Discord Bot Client ────────────────────────────────────────────────────────
+const client = new Client({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+    ],
+});
+
+// ── Cached IDs ────────────────────────────────────────────────────────────────
+let guild = null;
+let aiChannelId = null;
+let modChatId = null;
+let generalChatId = null;
+let securityLogsId = null;
+let createTicketId = null;
+let adminRoleId = null;
+let supportRoleId = null;
+let scalpProRoleId = null;
+let wickHunterRoleId = null;
+
+// COLORS
+const COLORS = {
+    orange: 0xf5a623, green: 0x2ecc71, red: 0xe74c3c,
+    blue: 0x3498db, purple: 0x9b59b6, gray: 0x95a5a6,
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// READY
+// ══════════════════════════════════════════════════════════════════════════════
+client.once(Events.ClientReady, async () => {
+    console.log(`\n🧠  Praxis AI Bot online as ${client.user.tag}`);
+
+    guild = client.guilds.cache.get(GUILD_ID);
+    if (!guild) { console.error("❌  Bot not in guild"); process.exit(1); }
+
+    const roles = await guild.roles.fetch();
+    const channels = await guild.channels.fetch();
+
+    adminRoleId = roles.find((r) => r.name === "Admin")?.id;
+    supportRoleId = roles.find((r) => r.name === "Support")?.id;
+    scalpProRoleId = roles.find((r) => r.name === "Scalp Pro")?.id;
+    wickHunterRoleId = roles.find((r) => r.name === "Wick Hunter")?.id;
+
+    channels.forEach((ch) => {
+        if (!ch) return;
+        if (ch.name === "ask-praxis") aiChannelId = ch.id;
+        if (ch.name === "mod-chat") modChatId = ch.id;
+        if (ch.name === "general-chat") generalChatId = ch.id;
+        if (ch.name === "security-logs") securityLogsId = ch.id;
+        if (ch.name === "create-ticket") createTicketId = ch.id;
+    });
+
+    // Create #ask-praxis if it doesn't exist
+    if (!aiChannelId) {
+        aiChannelId = await createAiChannel(channels);
+    }
+
+    // Register slash commands
+    await registerSlashCommands();
+
+    // Post onboarding embed in #ask-praxis
+    await postAiWelcomeEmbed();
+
+    // Start scheduled tasks
+    startScheduler();
+
+    console.log("✅  AI Bot fully initialized.\n");
+    console.log(`   #ask-praxis: ${aiChannelId}`);
+    console.log(`   #mod-chat:   ${modChatId}`);
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CREATE #ask-praxis CHANNEL
+// ══════════════════════════════════════════════════════════════════════════════
+async function createAiChannel(channels) {
+    // Find the START HERE category
+    const startHere = channels.find(
+        (ch) => ch && ch.type === ChannelType.GuildCategory && ch.name.includes("START HERE")
+    );
+
+    const freeRoleId = guild.roles.cache.find((r) => r.name === "Free")?.id;
+    const scalpRoleId = guild.roles.cache.find((r) => r.name === "Scalp Pro")?.id;
+    const wickRoleId = guild.roles.cache.find((r) => r.name === "Wick Hunter")?.id;
+
+    const overwrites = [
+        { id: GUILD_ID, deny: [PermissionFlagsBits.ViewChannel] },
+    ];
+    if (freeRoleId) overwrites.push({ id: freeRoleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] });
+    if (scalpRoleId) overwrites.push({ id: scalpRoleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] });
+    if (wickRoleId) overwrites.push({ id: wickRoleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] });
+
+    const ch = await guild.channels.create({
+        name: "ask-praxis",
+        type: ChannelType.GuildText,
+        topic: "Chat with the Praxis AI assistant — ask anything about our systems, TradingView setup, or the markets.",
+        parent: startHere?.id || undefined,
+        permissionOverwrites: overwrites,
+    });
+
+    console.log(`   🆕 Created #ask-praxis (${ch.id})`);
+    return ch.id;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// POST AI WELCOME EMBED
+// ══════════════════════════════════════════════════════════════════════════════
+async function postAiWelcomeEmbed() {
+    if (!aiChannelId) return;
+    const ch = await guild.channels.fetch(aiChannelId);
+    const msgs = await ch.messages.fetch({ limit: 5 });
+    if (msgs.some((m) => m.author.id === client.user.id)) return;
+
+    const embed = new EmbedBuilder()
+        .setTitle("🧠 Ask Praxis — AI Assistant")
+        .setDescription(
+            "Have a question? Just type it here and I'll answer instantly.\n\n" +
+            "**I can help with:**\n" +
+            "• Understanding Scalp Pro & Wick Hunter signals\n" +
+            "• TradingView indicator setup & username management\n" +
+            "• Market session times & trading basics\n" +
+            "• Subscription & membership questions\n" +
+            "• Anything else about Praxis Systems\n\n" +
+            "Need a real human? Just ask me to **open a ticket** and I'll route you straight to the team."
+        )
+        .setColor(COLORS.purple)
+        .addFields({
+            name: "⚡ Slash Commands",
+            value:
+                "`/tradingview set username:yourname` — Register or update your TradingView username\n" +
+                "`/mystatus` — See your subscription and registered TradingView username",
+            inline: false,
+        })
+        .setFooter({ text: "Praxis Systems AI — Powered by GPT-4o" })
+        .setTimestamp();
+
+    await ch.send({ embeds: [embed] });
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MESSAGE HANDLER — AI Chat in #ask-praxis
+// ══════════════════════════════════════════════════════════════════════════════
+client.on(Events.MessageCreate, async (message) => {
+    if (message.author.bot) return;
+    if (message.channel.id !== aiChannelId) return;
+    if (!message.guild) return;
+
+    const member = message.member || await guild.members.fetch(message.author.id);
+    const users = loadUsers();
+
+    // Check if escalation is needed
+    if (needsEscalation(message.content)) {
+        await sendEscalationEmbed(message.channel, message.author);
+        return;
+    }
+
+    // Show typing indicator
+    await message.channel.sendTyping();
+
+    const systemPrompt = buildSystemPrompt(member, users);
+    addToHistory(message.author.id, "user", message.content);
+
+    let reply = "";
+
+    if (!openai) {
+        reply = "⚠️ The AI is not configured yet. Please add your `OPENAI_API_KEY` to the `.env` file and restart the bot.";
+    } else {
+        try {
+            const completion = await openai.chat.completions.create({
+                model: "gpt-4o",
+                messages: [
+                    { role: "system", content: systemPrompt },
+                    ...getHistory(message.author.id),
+                ],
+                max_tokens: 500,
+                temperature: 0.7,
+            });
+
+            reply = completion.choices[0]?.message?.content?.trim() || "I couldn't generate a response. Please try again.";
+
+            // If AI decided escalation is needed
+            if (reply.includes("ESCALATE_TO_TICKET")) {
+                await sendEscalationEmbed(message.channel, message.author);
+                return;
+            }
+
+            addToHistory(message.author.id, "assistant", reply);
+        } catch (err) {
+            console.error("OpenAI error:", err.message);
+            reply = "I ran into an issue generating a response. Please try again in a moment.";
+        }
+    }
+
+    // Send response as embed
+    const embed = new EmbedBuilder()
+        .setDescription(reply)
+        .setColor(COLORS.purple)
+        .setFooter({ text: `Replying to ${message.author.username} • Praxis AI` });
+
+    await message.reply({ embeds: [embed] });
+});
+
+// ── Escalation Embed ──────────────────────────────────────────────────────────
+async function sendEscalationEmbed(channel, user) {
+    const embed = new EmbedBuilder()
+        .setTitle("👋 Let's Connect You With Our Team")
+        .setDescription(
+            "It sounds like you'd benefit from speaking directly with a Praxis Systems team member.\n\n" +
+            "Click the button below to open a **private support ticket** — our team will respond within 2 hours during business hours."
+        )
+        .setColor(COLORS.orange)
+        .setFooter({ text: "Praxis Systems Support" });
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setLabel("🎫 Open a Support Ticket")
+            .setStyle(ButtonStyle.Primary)
+            .setURL(`https://discord.com/channels/${GUILD_ID}/${createTicketId}`)
+    );
+
+    await channel.send({ content: `<@${user.id}>`, embeds: [embed], components: [row] });
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SLASH COMMANDS — Register & Handle
+// ══════════════════════════════════════════════════════════════════════════════
+async function registerSlashCommands() {
+    if (!CLIENT_ID) {
+        console.warn("⚠  DISCORD_CLIENT_ID not set — skipping slash command registration");
+        return;
+    }
+
+    const commands = [
+        new SlashCommandBuilder()
+            .setName("tradingview")
+            .setDescription("Manage your TradingView username for indicator access")
+            .addSubcommand((sub) =>
+                sub
+                    .setName("set")
+                    .setDescription("Set or update your TradingView username")
+                    .addStringOption((opt) =>
+                        opt.setName("username")
+                            .setDescription("Your TradingView username")
+                            .setRequired(true)
+                    )
+            )
+            .addSubcommand((sub) =>
+                sub.setName("view")
+                    .setDescription("View your currently registered TradingView username")
+            ),
+
+        new SlashCommandBuilder()
+            .setName("mystatus")
+            .setDescription("View your Praxis Systems subscription and registered details"),
+    ].map((cmd) => cmd.toJSON());
+
+    const rest = new REST({ version: "10" }).setToken(BOT_TOKEN);
+    try {
+        await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands });
+        console.log("   ✔ Slash commands registered");
+    } catch (err) {
+        console.error("   ✘ Slash command registration failed:", err.message);
+    }
+}
+
+client.on(Events.InteractionCreate, async (interaction) => {
+    if (!interaction.isChatInputCommand()) return;
+
+    const users = loadUsers();
+    const userId = interaction.user.id;
+
+    // ── /mystatus ─────────────────────────────────────────────────────────────
+    if (interaction.commandName === "mystatus") {
+        const member = interaction.member;
+        const userData = users[userId] || {};
+
+        const roles = member.roles.cache
+            .filter((r) => r.name !== "@everyone")
+            .map((r) => r.name)
+            .join(", ") || "None";
+
+        const tvUser = userData.tradingview_username || "❌ Not registered";
+        const sub = userData.subscription || "Free";
+        const joined = userData.joined || "Unknown";
+
+        const embed = new EmbedBuilder()
+            .setTitle("📋 Your Praxis Systems Profile")
+            .setColor(COLORS.blue)
+            .addFields(
+                { name: "Discord Username", value: interaction.user.username, inline: true },
+                { name: "Subscription", value: sub, inline: true },
+                { name: "TradingView Username", value: `\`${tvUser}\``, inline: false },
+                { name: "Discord Roles", value: roles, inline: false },
+                { name: "Member Since", value: joined, inline: true },
+            )
+            .setFooter({ text: "Use /tradingview set username: to update your TradingView username" });
+
+        await interaction.reply({ embeds: [embed], ephemeral: true });
+        return;
+    }
+
+    // ── /tradingview ──────────────────────────────────────────────────────────
+    if (interaction.commandName === "tradingview") {
+        const sub = interaction.options.getSubcommand();
+
+        if (sub === "view") {
+            const userData = users[userId] || {};
+            const tv = userData.tradingview_username || "Not registered";
+            await interaction.reply({
+                content: `Your registered TradingView username: \`${tv}\``,
+                ephemeral: true,
+            });
+            return;
+        }
+
+        if (sub === "set") {
+            const newUsername = interaction.options.getString("username").trim();
+            const userData = users[userId] || {};
+            const oldUsername = userData.tradingview_username || null;
+
+            // Update the users database
+            users[userId] = {
+                ...userData,
+                tradingview_username: newUsername,
+                subscription: userData.subscription || detectSubscription(interaction.member),
+                joined: userData.joined || new Date().toISOString().split("T")[0],
+                discord_username: interaction.user.username,
+            };
+            saveUsers(users);
+
+            // Notify admin team in #mod-chat
+            if (modChatId) {
+                const modChannel = await guild.channels.fetch(modChatId);
+                const action = oldUsername
+                    ? `**Change request** — remove \`${oldUsername}\`, add \`${newUsername}\``
+                    : `**New access request** — add \`${newUsername}\``;
+
+                const embed = new EmbedBuilder()
+                    .setTitle("📈 TradingView Access Update Required")
+                    .setDescription(
+                        `<@${userId}> (${interaction.user.username}) has ${oldUsername ? "changed" : "registered"} their TradingView username.\n\n` +
+                        `**Action required:** ${action}\n\n` +
+                        `*Please update their indicator access on TradingView.*`
+                    )
+                    .setColor(COLORS.orange)
+                    .addFields(
+                        { name: "Discord User", value: `<@${userId}>`, inline: true },
+                        { name: "Old TV Username", value: oldUsername || "None", inline: true },
+                        { name: "New TV Username", value: `\`${newUsername}\``, inline: true },
+                    )
+                    .setTimestamp();
+
+                await modChannel.send({ embeds: [embed] });
+            }
+
+            const confirmEmbed = new EmbedBuilder()
+                .setDescription(
+                    `✅ Your TradingView username has been set to \`${newUsername}\`.\n\n` +
+                    `Our team has been notified and will update your indicator access shortly.${oldUsername ? `\n\n**Old username:** \`${oldUsername}\` will have its access removed.` : ""
+                    }`
+                )
+                .setColor(COLORS.green);
+
+            await interaction.reply({ embeds: [confirmEmbed], ephemeral: true });
+            return;
+        }
+    }
+});
+
+function detectSubscription(member) {
+    if (!member) return "Free";
+    if (member.roles.cache.some((r) => r.name === "Scalp Pro")) return "Scalp Pro";
+    if (member.roles.cache.some((r) => r.name === "Wick Hunter")) return "Wick Hunter";
+    return "Free";
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MEMBER USERNAME CHANGE DETECTOR
+// ══════════════════════════════════════════════════════════════════════════════
+client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
+    if (newMember.guild.id !== GUILD_ID) return;
+
+    const oldName = oldMember.user.username;
+    const newName = newMember.user.username;
+    if (oldName === newName) return;
+
+    const users = loadUsers();
+    const userData = users[newMember.id];
+
+    // Only alert if they have a TradingView username registered
+    if (!userData?.tradingview_username) return;
+
+    // Update stored discord username
+    users[newMember.id].discord_username = newName;
+    saveUsers(users);
+
+    if (modChatId) {
+        const modChannel = await guild.channels.fetch(modChatId);
+        const embed = new EmbedBuilder()
+            .setTitle("⚠️ Discord Username Changed")
+            .setDescription(
+                `<@${newMember.id}> changed their Discord username.\n\n` +
+                `This user has a **registered TradingView username**: \`${userData.tradingview_username}\`\n\n` +
+                `No action needed for TradingView unless they changed their TradingView username too. If unsure, ask them to run \`/tradingview set\` to confirm.`
+            )
+            .setColor(COLORS.orange)
+            .addFields(
+                { name: "Old Discord Username", value: oldName, inline: true },
+                { name: "New Discord Username", value: newName, inline: true },
+                { name: "TradingView Username", value: `\`${userData.tradingview_username}\``, inline: false },
+            )
+            .setTimestamp();
+
+        await modChannel.send({ embeds: [embed] });
+    }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ROLE ASSIGNMENT TRACKING — Auto-update users.json when roles change
+// ══════════════════════════════════════════════════════════════════════════════
+client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
+    if (newMember.guild.id !== GUILD_ID) return;
+
+    const users = loadUsers();
+    const userId = newMember.id;
+    const userData = users[userId] || {};
+
+    const hadScalpPro = oldMember.roles.cache.some((r) => r.name === "Scalp Pro");
+    const hasScalpPro = newMember.roles.cache.some((r) => r.name === "Scalp Pro");
+    const hadWickHunter = oldMember.roles.cache.some((r) => r.name === "Wick Hunter");
+    const hasWickHunter = newMember.roles.cache.some((r) => r.name === "Wick Hunter");
+
+    let changed = false;
+
+    if (!hadScalpPro && hasScalpPro) {
+        userData.subscription = "Scalp Pro";
+        changed = true;
+    } else if (!hadWickHunter && hasWickHunter) {
+        userData.subscription = "Wick Hunter";
+        changed = true;
+    } else if ((hadScalpPro && !hasScalpPro) || (hadWickHunter && !hasWickHunter)) {
+        const stillHasScalp = newMember.roles.cache.some((r) => r.name === "Scalp Pro");
+        const stillHasWick = newMember.roles.cache.some((r) => r.name === "Wick Hunter");
+        userData.subscription = stillHasScalp ? "Scalp Pro" : stillHasWick ? "Wick Hunter" : "Free";
+        changed = true;
+    }
+
+    if (changed) {
+        userData.discord_username = newMember.user.username;
+        userData.joined = userData.joined || new Date().toISOString().split("T")[0];
+        users[userId] = userData;
+        saveUsers(users);
+        console.log(`   💾 Updated users.json for ${newMember.user.username}: ${userData.subscription}`);
+    }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SCHEDULERS
+// ══════════════════════════════════════════════════════════════════════════════
+function startScheduler() {
+    // Daily market briefing — weekdays at 8:00 AM ET (13:00 UTC)
+    cron.schedule("0 13 * * 1-5", async () => {
+        if (!generalChatId) return;
+        try {
+            const ch = await guild.channels.fetch(generalChatId);
+            const now = new Date().toLocaleDateString("en-US", {
+                weekday: "long", year: "numeric", month: "long", day: "numeric",
+                timeZone: "America/New_York",
+            });
+            const embed = new EmbedBuilder()
+                .setTitle("🌅 Daily Trading Briefing")
+                .setDescription(
+                    `Good morning traders! Today is **${now}**.\n\n` +
+                    "The US futures market opens at **9:30 AM ET**. Pre-market begins at 6:00 AM ET.\n\n" +
+                    "📊 Check your signal channel for today's daily plan:\n" +
+                    "• Scalp Pro members → **#scalp-pro-daily-plan**\n" +
+                    "• Wick Hunter members → **#wick-hunter-daily-plan**\n\n" +
+                    "*Trade with discipline. Manage your risk.* 💪"
+                )
+                .setColor(COLORS.green)
+                .setFooter({ text: "Praxis Systems — Automated Daily Briefing" })
+                .setTimestamp();
+
+            await ch.send({ embeds: [embed] });
+        } catch (e) {
+            console.error("Daily briefing error:", e.message);
+        }
+    }, { timezone: "America/New_York" });
+
+    // Inactive ticket cleanup — check every hour
+    cron.schedule("0 * * * *", async () => {
+        if (!guild) return;
+        try {
+            const channels = await guild.channels.fetch();
+            const now = Date.now();
+            const FORTY_EIGHT_HOURS = 48 * 60 * 60 * 1000;
+
+            for (const [, ch] of channels) {
+                if (!ch || ch.type !== ChannelType.GuildText) continue;
+                if (!ch.name.startsWith("ticket-")) continue;
+
+                const messages = await ch.messages.fetch({ limit: 1 });
+                const lastMsg = messages.first();
+                const lastActivity = lastMsg?.createdTimestamp || ch.createdTimestamp;
+
+                if (now - lastActivity > FORTY_EIGHT_HOURS) {
+                    console.log(`⏰ Auto-closing inactive ticket: #${ch.name}`);
+
+                    const embed = new EmbedBuilder()
+                        .setDescription("🔒 This ticket has been **auto-closed** due to 48 hours of inactivity.")
+                        .setColor(COLORS.gray)
+                        .setTimestamp();
+
+                    await ch.send({ embeds: [embed] });
+                    await new Promise((r) => setTimeout(r, 3000));
+                    await ch.delete("Auto-closed: 48hr inactivity");
+                }
+            }
+        } catch (e) {
+            console.error("Ticket cleanup error:", e.message);
+        }
+    });
+
+    console.log("   ⏰ Schedulers started (daily briefing + ticket cleanup)");
+}
+
+// ── Login ─────────────────────────────────────────────────────────────────────
+client.login(BOT_TOKEN).catch((err) => {
+    console.error("❌  AI Bot login failed:", err.message);
+    process.exit(1);
+});
+
+process.on("SIGINT", () => {
+    console.log("\n🛑  AI Bot shutting down…");
+    client.destroy();
+    process.exit(0);
+});

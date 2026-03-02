@@ -6,11 +6,14 @@
   "scripts": {
     "deploy": "node deploy.js",
     "dry-run": "node deploy.js --dry-run",
-    "bot": "node bot.js"
+    "bot": "node bot.js",
+    "ai": "node ai.js"
   },
   "dependencies": {
     "discord.js": "^14.16.3",
     "dotenv": "^16.4.7",
-    "node-fetch": "^2.7.0"
+    "node-cron": "^4.2.1",
+    "node-fetch": "^2.7.0",
+    "openai": "^6.25.0"
   }
 }
