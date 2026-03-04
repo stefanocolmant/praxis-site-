@@ -1,19 +1,21 @@
-# Use official Node.js 20 slim image
+# Praxis Systems — Unified Cloud Deployment
 FROM node:20-slim
 
 WORKDIR /app
 
-# Copy only dependency files first (layer cache optimization)
+# Copy dependency files first (layer cache)
 COPY package*.json ./
 RUN npm ci --omit=dev
 
-# Copy application files
-COPY webhooks.js ./
-COPY .env.example ./.env.example
+# Copy all application files
+COPY server.js bot.js ai.js webhooks.js deploy.js ./
+COPY knowledge-base.json ./
+COPY .env.example ./
 
-# Railway sets PORT automatically via environment variable
+# Render sets PORT via environment variable
 ENV PORT=3000
 
 EXPOSE 3000
 
-CMD ["node", "webhooks.js"]
+# Single entry point runs all 3 services
+CMD ["node", "server.js"]
